@@ -9,7 +9,6 @@ class RMT::CLI::Mirror < RMT::CLI::Base
       rescue RMT::Mirror::Exception => e
         errors << _('Mirroring SUMA product tree failed: %{error_message}') % { error_message: e.message }
       end
-
       raise RMT::CLI::Error.new(_('There are no repositories marked for mirroring.')) if Repository.only_mirroring_enabled.empty?
 
       # The set of repositories to be mirrored can change while the command is
@@ -18,11 +17,15 @@ class RMT::CLI::Mirror < RMT::CLI::Base
       # loaded before being used to avoid querying twice in the block, which
       # could lead to different Repositories sets where it's used.
       mirrored_repo_ids = []
+      mirrored_repo_local_paths = []
+
       until (repos = Repository.only_mirroring_enabled.where.not(id: mirrored_repo_ids).load).empty?
         mirror_repos!(repos)
+        mirrored_repo_local_paths = repos.pluck(:local_path)
         mirrored_repo_ids.concat(repos.pluck(:id))
       end
 
+      add_summary(mirrored_repo_ids.count, mirrored_repo_local_paths)
       finish_execution
     end
   end
@@ -143,6 +146,7 @@ class RMT::CLI::Mirror < RMT::CLI::Base
       }
       errored_repos_id << repo.id if options[:do_not_raise_unpublished]
     end
+
   end
 
   def finish_execution
@@ -154,5 +158,19 @@ class RMT::CLI::Mirror < RMT::CLI::Base
       logger.warn("\e[33m" + _('Mirroring completed with errors.') + "\e[0m")
       raise RMT::CLI::Error.new('The command exited with errors.') unless options[:do_not_raise_unpublished] && in_alpha_or_beta?
     end
+  end
+
+  def add_summary(mirrored_repo_ids_count, mirrored_repo_local_paths)
+    total_transferred_files = 0
+    mirrored_repo_local_paths.each do |path|
+      total_transferred_files += mirror.count_files_in_dir(local_path: path)
+    end
+
+    logger.info(%(
+                           Summary:
+                           Total mirrored repositories: #{mirrored_repo_ids_count}
+                           Total transferred files: #{total_transferred_files}))
+
+
   end
 end

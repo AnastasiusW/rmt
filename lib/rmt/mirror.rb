@@ -65,6 +65,10 @@ class RMT::Mirror
     [temp_licenses_dir, temp_metadata_dir].each { |dir| FileUtils.remove_entry(dir, true) }
   end
 
+  def count_files_in_dir(local_path:)
+    Dir.glob("#{File.join(mirroring_base_dir, local_path)}/**/*", File::FNM_DOTMATCH).count { |file| File.file?(file) }
+  end
+
   protected
 
   attr_reader :airgap_mode, :deep_verify, :downloader, :logger, :mirroring_base_dir, :mirror_src
